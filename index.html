@@ -1,0 +1,1255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Port of Gothenburg — Vessel Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0a0e14;
+    --surface: #111620;
+    --surface2: #171d2b;
+    --border: #1e2a3a;
+    --accent: #00c2ff;
+    --accent2: #0077aa;
+    --green: #00e5a0;
+    --amber: #ffb830;
+    --red: #ff4757;
+    --text: #d4dde8;
+    --muted: #5a7080;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,194,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,194,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrapper {
+    position: relative;
+    z-index: 1;
+    max-width: 1300px;
+    margin: 0 auto;
+    padding: 0 24px 60px;
+  }
+
+  header {
+    padding: 36px 0 24px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 28px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .port-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  h1 {
+    font-family: var(--mono);
+    font-size: 26px;
+    font-weight: 600;
+    color: #fff;
+    letter-spacing: -0.02em;
+  }
+
+  .subtitle {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 4px;
+    font-weight: 300;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .dashboard-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0 16px;
+    height: 34px;
+    border-radius: 6px;
+    border: 1px solid var(--accent);
+    background: transparent;
+    color: var(--accent);
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.2s;
+  }
+
+  .dashboard-btn:hover {
+    background: var(--accent);
+    color: #000;
+  }
+
+  .dashboard-btn svg {
+    width: 13px;
+    height: 13px;
+    flex-shrink: 0;
+  }
+
+  .live-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--green);
+    letter-spacing: 0.1em;
+  }
+
+  .live-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%,100% { opacity:1; transform:scale(1); }
+    50%      { opacity:0.4; transform:scale(0.8); }
+  }
+
+  /* ── Date controls ── */
+  .date-controls {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+
+  .date-mode-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    padding: 0 20px;
+  }
+
+  .mode-tab {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 12px 16px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-bottom: -1px;
+  }
+
+  .mode-tab:hover  { color: var(--text); }
+  .mode-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .date-panel {
+    display: none;
+    align-items: center;
+    gap: 24px;
+    flex-wrap: wrap;
+    padding: 16px 20px;
+  }
+
+  .date-panel.visible { display: flex; }
+
+  .date-group { display: flex; flex-direction: column; gap: 6px; }
+
+  .ctrl-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  .date-nav { display: flex; align-items: center; gap: 6px; }
+
+  .nav-btn {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 5px;
+    width: 32px; height: 32px;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+
+  .nav-btn:hover { border-color: var(--accent2); color: var(--accent); }
+
+  .ghost-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 5px;
+    padding: 0 12px;
+    height: 32px;
+    font-family: var(--mono);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+  }
+
+  .ghost-btn:hover { border-color: var(--accent2); color: var(--accent); }
+
+  input[type="date"] {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s;
+    color-scheme: dark;
+    cursor: pointer;
+    width: 148px;
+    height: 32px;
+  }
+
+  input[type="date"]:focus { border-color: var(--accent2); }
+
+  .span-pills { display: flex; gap: 5px; flex-wrap: wrap; }
+
+  .span-pill {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 0 13px;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    height: 32px;
+    display: flex; align-items: center;
+    white-space: nowrap;
+  }
+
+  .span-pill:hover  { border-color: var(--accent2); color: var(--accent); }
+  .span-pill.active { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 600; }
+
+  .range-arrow { font-family: var(--mono); font-size: 14px; color: var(--muted); }
+
+  .range-summary {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    text-align: right;
+    line-height: 1.7;
+  }
+
+  .range-summary .rng-dates { color: var(--text); font-size: 13px; }
+  .range-summary .rng-days  { font-size: 11px; }
+
+  /* ── Controls row ── */
+  .controls {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .btn {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    padding: 11px 24px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex; align-items: center; gap: 8px;
+    white-space: nowrap;
+  }
+
+  .btn-primary { background: var(--accent); color: #000; }
+  .btn-primary:hover    { background: #33cfff; }
+  .btn-primary:disabled { background: var(--accent2); color: #000; opacity: 0.6; cursor: not-allowed; }
+
+  .btn-secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { border-color: var(--accent2); color: var(--accent); }
+
+  input[type="text"] {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s;
+    flex: 1;
+    min-width: 200px;
+    max-width: 320px;
+  }
+
+  input[type="text"]:focus { border-color: var(--accent2); }
+  input[type="text"]::placeholder { color: var(--muted); }
+
+  /* ── Status bar ── */
+  .status-bar {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 20px;
+    padding: 10px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 40px;
+  }
+
+  .status-bar.error   { color: var(--red);   border-color: rgba(255,71,87,0.3); }
+  .status-bar.success { color: var(--green);  border-color: rgba(0,229,160,0.3); }
+  .status-bar.loading { color: var(--amber);  border-color: rgba(255,184,48,0.3); }
+
+  .spinner {
+    width: 14px; height: 14px;
+    border: 2px solid transparent;
+    border-top-color: var(--amber);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Stats ── */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 18px;
+  }
+
+  .stat-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .stat-value {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+
+  /* ── Table ── */
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    overflow-x: auto;
+  }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 900px; }
+
+  thead { background: var(--surface2); border-bottom: 1px solid var(--border); }
+
+  th {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 12px 14px;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable:hover { color: var(--accent); }
+
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.1s;
+  }
+
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--surface2); }
+
+  td { padding: 11px 14px; vertical-align: middle; }
+
+  .vessel-name { font-weight: 500; color: #fff; font-size: 14px; }
+  .vessel-imo  { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+  .mono-sm { font-family: var(--mono); font-size: 12px; }
+  .time-arrival  { color: var(--green); }
+  .time-departure{ color: var(--amber); }
+  .time-muted    { color: var(--muted); }
+
+  .badge {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.07em;
+    padding: 3px 7px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .badge-arrival    { background: rgba(0,229,160,0.1);  color: var(--green);  border: 1px solid rgba(0,229,160,0.25); }
+  .badge-departure  { background: rgba(255,184,48,0.1);  color: var(--amber);  border: 1px solid rgba(255,184,48,0.25); }
+  .badge-actual     { background: rgba(0,194,255,0.08);  color: var(--accent); border: 1px solid rgba(0,194,255,0.2); }
+  .badge-estimated  { background: rgba(90,112,128,0.12); color: var(--muted);  border: 1px solid rgba(90,112,128,0.25); }
+
+  .agent-cell { color: var(--text); max-width: 180px; }
+  .port-cell  { font-size: 12px; color: var(--muted); }
+  .port-cell strong { color: var(--text); font-weight: 400; }
+
+  /* Empty state */
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--muted); }
+  .empty-icon  { font-size: 40px; margin-bottom: 12px; opacity: 0.4; }
+  .empty-title { font-family: var(--mono); font-size: 14px; color: var(--text); margin-bottom: 6px; }
+  .empty-sub   { font-size: 13px; }
+
+  /* Export */
+  .export-row {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 16px;
+  }
+
+  /* Progress bar */
+  .progress-wrap {
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    margin-bottom: 20px;
+    overflow: hidden;
+    display: none;
+  }
+
+  .progress-bar {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.3s ease;
+  }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--accent2); }
+
+  @media (max-width: 720px) {
+    h1 { font-size: 20px; }
+    .controls { flex-direction: column; align-items: stretch; }
+    input[type="text"] { max-width: 100%; }
+    .range-summary { margin-left: 0; text-align: left; }
+  }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <header>
+    <div>
+      <div class="port-label">⚓ Port of Gothenburg</div>
+      <h1>VESSEL TRACKER</h1>
+      <div class="subtitle">Live Arrivals &amp; Departures — Direct API</div>
+    </div>
+    <div class="header-right">
+      <a href="/dashboard" class="dashboard-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+          <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+        </svg>
+        Flag Dashboard
+      </a>
+      <div class="live-badge">
+        <div class="live-dot"></div>
+        LIVE DATA
+      </div>
+    </div>
+  </header>
+
+  <!-- Date controls -->
+  <div class="date-controls">
+    <div class="date-mode-tabs">
+      <button class="mode-tab active" id="tabSpan"   onclick="switchMode('span')">&#177; Span</button>
+      <button class="mode-tab"        id="tabCustom" onclick="switchMode('custom')">Custom Range</button>
+    </div>
+
+    <!-- Span panel -->
+    <div class="date-panel visible" id="panelSpan">
+      <div class="date-group">
+        <div class="ctrl-label">Centre Date</div>
+        <div class="date-nav">
+          <button class="nav-btn" onclick="shiftDate(-1)">&#8249;</button>
+          <input type="date" id="centreDate" onchange="onCentreDateChange()" />
+          <button class="nav-btn" onclick="shiftDate(1)">&#8250;</button>
+          <button class="ghost-btn" onclick="setToday()">Today</button>
+        </div>
+      </div>
+      <div class="date-group">
+        <div class="ctrl-label">Date Span</div>
+        <div class="span-pills">
+          <button class="span-pill"        data-days="1" onclick="setSpan(1)">&#177;1 day</button>
+          <button class="span-pill active" data-days="2" onclick="setSpan(2)">&#177;2 days</button>
+          <button class="span-pill"        data-days="3" onclick="setSpan(3)">&#177;3 days</button>
+          <button class="span-pill"        data-days="5" onclick="setSpan(5)">&#177;5 days</button>
+          <button class="span-pill"        data-days="7" onclick="setSpan(7)">&#177;7 days</button>
+        </div>
+      </div>
+      <div class="range-summary" id="spanSummary">
+        <div class="rng-dates">—</div>
+        <div class="rng-days">select a date and span</div>
+      </div>
+    </div>
+
+    <!-- Custom panel -->
+    <div class="date-panel" id="panelCustom">
+      <div class="date-group">
+        <div class="ctrl-label">From</div>
+        <input type="date" id="customStart" onchange="onCustomChange()" />
+      </div>
+      <div class="range-arrow">&#8594;</div>
+      <div class="date-group">
+        <div class="ctrl-label">To</div>
+        <input type="date" id="customEnd" onchange="onCustomChange()" />
+      </div>
+      <button class="ghost-btn" onclick="setCustomThisWeek()"  style="align-self:flex-end">This week</button>
+      <button class="ghost-btn" onclick="setCustomThisMonth()" style="align-self:flex-end">This month</button>
+      <button class="ghost-btn" onclick="setCustomNextMonth()" style="align-self:flex-end">Next month</button>
+      <div class="range-summary" id="customSummary">
+        <div class="rng-dates">—</div>
+        <div class="rng-days">select start and end dates</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <button class="btn btn-primary" id="fetchBtn" onclick="fetchAll()">&#9654; Fetch Vessels</button>
+    <button class="btn btn-secondary" id="refreshBtn" onclick="fetchAll()" style="display:none">&#8635; Refresh</button>
+    <input type="text" id="filterInput" placeholder="Filter by name, agent, quay, port…" oninput="applyFilter()" />
+    <!-- Type filter -->
+    <select id="typeFilter" onchange="applyFilter()" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;font-family:var(--mono);font-size:12px;color:var(--text);outline:none;cursor:pointer;height:42px">
+      <option value="">All types</option>
+      <option value="arrival">Arrivals only</option>
+      <option value="departure">Departures only</option>
+    </select>
+  </div>
+
+  <!-- Status -->
+  <div class="status-bar" id="statusBar">
+    Select a date range and click Fetch Vessels — no API key required.
+  </div>
+
+  <!-- Progress bar -->
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-bar" id="progressBar" style="width:0%"></div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-row" id="statsRow" style="display:none">
+    <div class="stat-card">
+      <div class="stat-label">Total Vessels</div>
+      <div class="stat-value" id="statTotal">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Arrivals</div>
+      <div class="stat-value" id="statArrivals" style="color:var(--green)">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Departures</div>
+      <div class="stat-value" id="statDepartures" style="color:var(--amber)">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Actual</div>
+      <div class="stat-value" id="statActual" style="color:var(--accent)">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Period</div>
+      <div class="stat-value" id="statPeriod" style="font-size:12px;color:var(--muted);padding-top:4px">—</div>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="table-wrap" id="tableWrap">
+    <div class="empty-state">
+      <div class="empty-icon">🚢</div>
+      <div class="empty-title">No data loaded</div>
+      <div class="empty-sub">Select a date range and click Fetch Vessels</div>
+    </div>
+  </div>
+
+  <!-- Export -->
+  <div class="export-row" id="exportRow" style="display:none">
+    <button class="btn btn-secondary" onclick="exportCSV()">&#11015; Export CSV</button>
+    <button class="btn btn-secondary" onclick="exportJSON()">&#11015; Export JSON</button>
+  </div>
+
+</div>
+<script>
+// ── State ──────────────────────────────────────────────────────────────────────
+let allVessels = [], filteredVessels = [];
+let sortCol = null, sortDir = 1;
+let currentSpan = 2;
+let centreDate  = new Date();
+let dateMode    = 'span';
+
+
+// ── MID → Flag lookup (MMSI first 3 digits = Maritime Identification Digits) ──
+const MID = {
+  201:'Albania',202:'Andorra',203:'Austria',204:'Portugal',205:'Belgium',
+  206:'Belarus',207:'Bulgaria',208:'Vatican',209:'Cyprus',210:'Cyprus',
+  211:'Germany',212:'Cyprus',213:'Georgia',214:'Moldova',215:'Malta',
+  216:'Armenia',218:'Germany',219:'Denmark',220:'Denmark',224:'Spain',
+  225:'Spain',226:'France',227:'France',228:'France',229:'Malta',
+  230:'Finland',231:'Faroe Islands',232:'United Kingdom',233:'United Kingdom',
+  234:'United Kingdom',235:'United Kingdom',236:'Gibraltar',237:'Greece',
+  238:'Croatia',239:'Greece',240:'Greece',241:'Greece',242:'Morocco',
+  243:'Hungary',244:'Netherlands',245:'Netherlands',246:'Netherlands',
+  247:'Italy',248:'Malta',249:'Malta',250:'Ireland',251:'Iceland',
+  252:'Liechtenstein',253:'Luxembourg',254:'Monaco',255:'Madeira',
+  256:'Malta',257:'Norway',258:'Norway',259:'Norway',261:'Poland',
+  262:'Montenegro',263:'Portugal',264:'Romania',265:'Sweden',266:'Sweden',
+  267:'Slovakia',268:'San Marino',269:'Switzerland',270:'Czech Republic',
+  271:'Turkey',272:'Ukraine',273:'Russia',274:'North Macedonia',
+  275:'Latvia',276:'Estonia',277:'Lithuania',278:'Slovenia',279:'Serbia',
+  301:'Anguilla',303:'Alaska (USA)',304:'Antigua and Barbuda',305:'Antigua and Barbuda',
+  306:'Sint Maarten / Saint Martin',307:'Aruba',308:'Bahamas',309:'Bahamas',
+  310:'Bermuda',311:'Bahamas',312:'Belize',314:'Barbados',316:'Canada',
+  319:'Cayman Islands',321:'Costa Rica',323:'Cuba',325:'Dominica',
+  327:'Dominican Republic',329:'Guadeloupe',330:'Grenada',331:'Greenland',
+  332:'Guatemala',334:'Honduras',336:'Haiti',338:'United States',
+  339:'Jamaica',341:'Saint Kitts and Nevis',343:'Saint Lucia',
+  345:'Mexico',347:'Martinique',348:'Montserrat',350:'Nicaragua',
+  351:'Panama',352:'Panama',353:'Panama',354:'Panama',355:'Panama',
+  356:'Panama',357:'Panama',358:'Puerto Rico',359:'El Salvador',
+  361:'Saint Pierre and Miquelon',362:'Trinidad and Tobago',364:'Turks and Caicos Islands',
+  366:'United States',367:'United States',368:'United States',369:'United States',
+  370:'Panama',371:'Panama',372:'Panama',373:'Panama',374:'Panama',
+  375:'Saint Vincent and the Grenadines',376:'Saint Vincent and the Grenadines',
+  377:'Saint Vincent and the Grenadines',378:'British Virgin Islands',
+  379:'US Virgin Islands',
+  401:'Afghanistan',403:'Saudi Arabia',405:'Bangladesh',408:'Bahrain',
+  410:'Bhutan',412:'China',413:'China',414:'China',416:'Taiwan',
+  422:'Iran',423:'Azerbaijan',425:'Iraq',428:'Israel',431:'Japan',
+  432:'Japan',434:'Turkmenistan',436:'Kazakhstan',437:'Uzbekistan',
+  438:'Jordan',440:'South Korea',441:'South Korea',443:'Palestine',
+  445:'DPR Korea',447:'Kuwait',450:'Lebanon',451:'Kyrgyzstan',
+  453:'Macao',455:'Maldives',457:'Mongolia',459:'Nepal',461:'Oman',
+  463:'Pakistan',466:'Qatar',468:'Syria',470:'UAE',471:'UAE',
+  472:'Tajikistan',473:'Yemen',477:'Hong Kong',478:'Bosnia and Herzegovina',
+  501:'Antarctica',503:'Australia',506:'Myanmar',508:'Brunei',
+  510:'Micronesia',511:'Palau',512:'New Zealand',514:'Cambodia',
+  515:'Cambodia',516:'Christmas Island',518:'Cook Islands',520:'Fiji',
+  523:'Cocos (Keeling) Islands',525:'Indonesia',529:'Kiribati',
+  531:'Laos',533:'Malaysia',536:'Northern Mariana Islands',538:'Marshall Islands',
+  540:'New Caledonia',542:'Niue',544:'Nauru',546:'French Polynesia',
+  548:'Philippines',550:'East Timor',553:'Papua New Guinea',555:'Pitcairn Islands',
+  557:'Solomon Islands',559:'Samoa',561:'Singapore',
+  563:'Singapore',564:'Singapore',565:'Singapore',566:'Singapore',
+  567:'Thailand',570:'Tonga',572:'Tuvalu',574:'Vietnam',
+  576:'Vanuatu',577:'Vanuatu',578:'Wallis and Futuna',
+  601:'South Africa',603:'Angola',605:'Algeria',607:'Saint Paul',
+  608:'Ascension Island',609:'Burundi',610:'Benin',611:'Botswana',
+  612:'Central African Republic',613:'Cameroon',615:'Congo',
+  616:'Comoros',617:'Cape Verde',618:'Crozet Archipelago',
+  619:'Ivory Coast',620:'Comoros',621:'Djibouti',622:'Egypt',
+  624:'Ethiopia',625:'Eritrea',626:'Gabon',627:'Ghana',629:'Gambia',
+  630:'Guinea-Bissau',631:'Equatorial Guinea',632:'Guinea',
+  633:'Burkina Faso',634:'Kenya',635:'Kerguelen Islands',
+  636:'Liberia',637:'Liberia',638:'South Sudan',642:'Libya',
+  644:'Lesotho',645:'Mauritius',647:'Madagascar',649:'Mali',
+  650:'Mozambique',654:'Mauritania',655:'Malawi',656:'Niger',
+  657:'Nigeria',659:'Namibia',660:'Reunion',661:'Rwanda',
+  662:'Sudan',663:'Senegal',664:'Seychelles',665:'Saint Helena',
+  666:'Somalia',667:'Sierra Leone',668:'Sao Tome and Principe',
+  669:'Swaziland',670:'Chad',671:'Togo',672:'Tunisia',
+  674:'Tanzania',675:'Uganda',676:'DRC',677:'Tanzania',
+  678:'Zambia',679:'Zimbabwe',701:'Argentina',710:'Brazil',
+  720:'Bolivia',725:'Chile',730:'Colombia',735:'Ecuador',
+  740:'Falkland Islands',745:'Guiana',750:'Guyana',755:'Paraguay',
+  760:'Peru',765:'Suriname',770:'Uruguay',775:'Venezuela'
+};
+
+function flagFromMmsi(mmsi) {
+  if (!mmsi || mmsi === '0') return null;
+  const mid = parseInt(String(mmsi).substring(0, 3));
+  return MID[mid] || null;
+}
+
+function flagEmoji(country) {
+  if (!country) return '';
+  const map = {
+    'Albania':'🇦🇱','Andorra':'🇦🇩','Austria':'🇦🇹','Portugal':'🇵🇹','Belgium':'🇧🇪',
+    'Belarus':'🇧🇾','Bulgaria':'🇧🇬','Vatican':'🇻🇦','Cyprus':'🇨🇾','Germany':'🇩🇪',
+    'Georgia':'🇬🇪','Moldova':'🇲🇩','Malta':'🇲🇹','Armenia':'🇦🇲','Denmark':'🇩🇰',
+    'Spain':'🇪🇸','France':'🇫🇷','Finland':'🇫🇮','Faroe Islands':'🇫🇴',
+    'United Kingdom':'🇬🇧','Gibraltar':'🇬🇮','Greece':'🇬🇷','Croatia':'🇭🇷',
+    'Morocco':'🇲🇦','Hungary':'🇭🇺','Netherlands':'🇳🇱','Italy':'🇮🇹',
+    'Ireland':'🇮🇪','Iceland':'🇮🇸','Liechtenstein':'🇱🇮','Luxembourg':'🇱🇺',
+    'Monaco':'🇲🇨','Madeira':'🇵🇹','Norway':'🇳🇴','Poland':'🇵🇱',
+    'Montenegro':'🇲🇪','Romania':'🇷🇴','Sweden':'🇸🇪','Slovakia':'🇸🇰',
+    'San Marino':'🇸🇲','Switzerland':'🇨🇭','Czech Republic':'🇨🇿','Turkey':'🇹🇷',
+    'Ukraine':'🇺🇦','Russia':'🇷🇺','North Macedonia':'🇲🇰','Latvia':'🇱🇻',
+    'Estonia':'🇪🇪','Lithuania':'🇱🇹','Slovenia':'🇸🇮','Serbia':'🇷🇸',
+    'Anguilla':'🇦🇮','Antigua and Barbuda':'🇦🇬','Aruba':'🇦🇼','Bahamas':'🇧🇸',
+    'Bermuda':'🇧🇲','Belize':'🇧🇿','Barbados':'🇧🇧','Canada':'🇨🇦',
+    'Cayman Islands':'🇰🇾','Costa Rica':'🇨🇷','Cuba':'🇨🇺','Dominica':'🇩🇲',
+    'Dominican Republic':'🇩🇴','Guadeloupe':'🇬🇵','Grenada':'🇬🇩',
+    'Greenland':'🇬🇱','Guatemala':'🇬🇹','Honduras':'🇭🇳','Haiti':'🇭🇹',
+    'United States':'🇺🇸','Jamaica':'🇯🇲','Saint Kitts and Nevis':'🇰🇳',
+    'Saint Lucia':'🇱🇨','Mexico':'🇲🇽','Martinique':'🇲🇶','Montserrat':'🇲🇸',
+    'Nicaragua':'🇳🇮','Panama':'🇵🇦','Puerto Rico':'🇵🇷','El Salvador':'🇸🇻',
+    'Saint Pierre and Miquelon':'🇵🇲','Trinidad and Tobago':'🇹🇹',
+    'Turks and Caicos Islands':'🇹🇨','Saint Vincent and the Grenadines':'🇻🇨',
+    'British Virgin Islands':'🇻🇬','US Virgin Islands':'🇻🇮',
+    'Afghanistan':'🇦🇫','Saudi Arabia':'🇸🇦','Bangladesh':'🇧🇩','Bahrain':'🇧🇭',
+    'Bhutan':'🇧🇹','China':'🇨🇳','Taiwan':'🇹🇼','Iran':'🇮🇷','Azerbaijan':'🇦🇿',
+    'Iraq':'🇮🇶','Israel':'🇮🇱','Japan':'🇯🇵','Turkmenistan':'🇹🇲',
+    'Kazakhstan':'🇰🇿','Uzbekistan':'🇺🇿','Jordan':'🇯🇴','South Korea':'🇰🇷',
+    'Palestine':'🇵🇸','DPR Korea':'🇰🇵','Kuwait':'🇰🇼','Lebanon':'🇱🇧',
+    'Kyrgyzstan':'🇰🇬','Macao':'🇲🇴','Maldives':'🇲🇻','Mongolia':'🇲🇳',
+    'Nepal':'🇳🇵','Oman':'🇴🇲','Pakistan':'🇵🇰','Qatar':'🇶🇦','Syria':'🇸🇾',
+    'UAE':'🇦🇪','Tajikistan':'🇹🇯','Yemen':'🇾🇪','Hong Kong':'🇭🇰',
+    'Bosnia and Herzegovina':'🇧🇦','Australia':'🇦🇺','Myanmar':'🇲🇲',
+    'Brunei':'🇧🇳','Micronesia':'🇫🇲','Palau':'🇵🇼','New Zealand':'🇳🇿',
+    'Cambodia':'🇰🇭','Fiji':'🇫🇯','Indonesia':'🇮🇩','Kiribati':'🇰🇮',
+    'Laos':'🇱🇦','Malaysia':'🇲🇾','Marshall Islands':'🇲🇭','New Caledonia':'🇳🇨',
+    'Nauru':'🇳🇷','French Polynesia':'🇵🇫','Philippines':'🇵🇭',
+    'East Timor':'🇹🇱','Papua New Guinea':'🇵🇬','Solomon Islands':'🇸🇧',
+    'Samoa':'🇼🇸','Singapore':'🇸🇬','Thailand':'🇹🇭','Tonga':'🇹🇴',
+    'Tuvalu':'🇹🇻','Vietnam':'🇻🇳','Vanuatu':'🇻🇺',
+    'South Africa':'🇿🇦','Angola':'🇦🇴','Algeria':'🇩🇿','Burundi':'🇧🇮',
+    'Benin':'🇧🇯','Botswana':'🇧🇼','Central African Republic':'🇨🇫',
+    'Cameroon':'🇨🇲','Congo':'🇨🇬','Comoros':'🇰🇲','Cape Verde':'🇨🇻',
+    'Ivory Coast':'🇨🇮','Djibouti':'🇩🇯','Egypt':'🇪🇬','Ethiopia':'🇪🇹',
+    'Eritrea':'🇪🇷','Gabon':'🇬🇦','Ghana':'🇬🇭','Gambia':'🇬🇲',
+    'Guinea-Bissau':'🇬🇼','Equatorial Guinea':'🇬🇶','Guinea':'🇬🇳',
+    'Burkina Faso':'🇧🇫','Kenya':'🇰🇪','Liberia':'🇱🇷','South Sudan':'🇸🇸',
+    'Libya':'🇱🇾','Lesotho':'🇱🇸','Mauritius':'🇲🇺','Madagascar':'🇲🇬',
+    'Mali':'🇲🇱','Mozambique':'🇲🇿','Mauritania':'🇲🇷','Malawi':'🇲🇼',
+    'Niger':'🇳🇪','Nigeria':'🇳🇬','Namibia':'🇳🇦','Reunion':'🇷🇪',
+    'Rwanda':'🇷🇼','Sudan':'🇸🇩','Senegal':'🇸🇳','Seychelles':'🇸🇨',
+    'Saint Helena':'🇸🇭','Somalia':'🇸🇴','Sierra Leone':'🇸🇱',
+    'Sao Tome and Principe':'🇸🇹','Swaziland':'🇸🇿','Chad':'🇹🇩',
+    'Togo':'🇹🇬','Tunisia':'🇹🇳','Tanzania':'🇹🇿','Uganda':'🇺🇬',
+    'DRC':'🇨🇩','Zambia':'🇿🇲','Zimbabwe':'🇿🇼',
+    'Argentina':'🇦🇷','Brazil':'🇧🇷','Bolivia':'🇧🇴','Chile':'🇨🇱',
+    'Colombia':'🇨🇴','Ecuador':'🇪🇨','Falkland Islands':'🇫🇰',
+    'Guiana':'🇬🇫','Guyana':'🇬🇾','Paraguay':'🇵🇾','Peru':'🇵🇪',
+    'Suriname':'🇸🇷','Uruguay':'🇺🇾','Venezuela':'🇻🇪',
+  };
+  return map[country] || '';
+}
+
+const API_BASE = 'https://www.portofgothenburg.com/api-aad/web-backend/v1';
+const PAGE_SIZE = 100; // max per request
+
+// ── Date helpers ───────────────────────────────────────────────────────────────
+function toYMD(d)   { return d.toISOString().slice(0,10); }
+function toISO(d)   { return d.toISOString(); }
+
+function fromYMD(s) {
+  const [y,m,d] = s.split('-').map(Number);
+  return new Date(y, m-1, d);
+}
+
+function addDays(d, n) {
+  const r = new Date(d); r.setDate(r.getDate() + n); return r;
+}
+
+function startOfDay(d) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+}
+
+function endOfDay(d) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+}
+
+function fmtShort(d) {
+  return d.toLocaleDateString('en-GB', { day:'numeric', month:'short' });
+}
+
+function fmtDateTime(isoStr) {
+  if (!isoStr) return '—';
+  const d = new Date(isoStr);
+  return d.toLocaleDateString('en-GB', { day:'2-digit', month:'short' }) + ' ' +
+         d.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' });
+}
+
+function daysBetween(a,b) { return Math.round((b-a)/86400000); }
+
+function getActiveRange() {
+  if (dateMode === 'custom') {
+    const sv = document.getElementById('customStart').value;
+    const ev = document.getElementById('customEnd').value;
+    if (sv && ev) return { start: startOfDay(fromYMD(sv)), end: endOfDay(fromYMD(ev)) };
+    return null;
+  }
+  return {
+    start: startOfDay(addDays(centreDate, -currentSpan)),
+    end:   endOfDay(addDays(centreDate,  currentSpan))
+  };
+}
+
+// ── Mode switching ─────────────────────────────────────────────────────────────
+function switchMode(mode) {
+  dateMode = mode;
+  document.getElementById('tabSpan').classList.toggle('active', mode==='span');
+  document.getElementById('tabCustom').classList.toggle('active', mode==='custom');
+  document.getElementById('panelSpan').classList.toggle('visible', mode==='span');
+  document.getElementById('panelCustom').classList.toggle('visible', mode==='custom');
+}
+
+// ── Span UI ────────────────────────────────────────────────────────────────────
+function initDateUI() {
+  document.getElementById('centreDate').value = toYMD(centreDate);
+  document.getElementById('customStart').value = toYMD(new Date());
+  document.getElementById('customEnd').value   = toYMD(addDays(new Date(), 7));
+  refreshSpanSummary();
+  refreshCustomSummary();
+}
+
+function refreshSpanSummary() {
+  const s = addDays(centreDate, -currentSpan);
+  const e = addDays(centreDate,  currentSpan);
+  const days = currentSpan*2+1;
+  document.getElementById('spanSummary').innerHTML =
+    `<div class="rng-dates">${fmtShort(s)} &rarr; ${fmtShort(e)}</div>
+     <div class="rng-days">${days} day${days!==1?'s':''} total</div>`;
+}
+
+function shiftDate(delta) {
+  centreDate = addDays(centreDate, delta);
+  document.getElementById('centreDate').value = toYMD(centreDate);
+  refreshSpanSummary();
+}
+
+function setToday() {
+  centreDate = new Date();
+  document.getElementById('centreDate').value = toYMD(centreDate);
+  refreshSpanSummary();
+}
+
+function onCentreDateChange() {
+  const v = document.getElementById('centreDate').value;
+  if (v) { centreDate = fromYMD(v); refreshSpanSummary(); }
+}
+
+function setSpan(days) {
+  currentSpan = days;
+  document.querySelectorAll('.span-pill').forEach(el =>
+    el.classList.toggle('active', parseInt(el.dataset.days)===days));
+  refreshSpanSummary();
+}
+
+// ── Custom range UI ────────────────────────────────────────────────────────────
+function refreshCustomSummary() {
+  const sv = document.getElementById('customStart').value;
+  const ev = document.getElementById('customEnd').value;
+  if (!sv || !ev) {
+    document.getElementById('customSummary').innerHTML =
+      `<div class="rng-dates">—</div><div class="rng-days">select start and end dates</div>`;
+    return;
+  }
+  const s = fromYMD(sv), e = fromYMD(ev);
+  if (e < s) {
+    document.getElementById('customSummary').innerHTML =
+      `<div class="rng-dates" style="color:var(--red)">End before start</div><div class="rng-days">adjust dates</div>`;
+    return;
+  }
+  const days = daysBetween(s,e)+1;
+  document.getElementById('customSummary').innerHTML =
+    `<div class="rng-dates">${fmtShort(s)} &rarr; ${fmtShort(e)}</div>
+     <div class="rng-days">${days} day${days!==1?'s':''} total</div>`;
+}
+
+function onCustomChange() { refreshCustomSummary(); }
+
+function setCustomThisWeek() {
+  const today = new Date();
+  const dow   = today.getDay();
+  const mon   = addDays(today, -(dow===0?6:dow-1));
+  document.getElementById('customStart').value = toYMD(mon);
+  document.getElementById('customEnd').value   = toYMD(addDays(mon,6));
+  refreshCustomSummary();
+}
+
+function setCustomThisMonth() {
+  const t = new Date();
+  document.getElementById('customStart').value = toYMD(new Date(t.getFullYear(),t.getMonth(),1));
+  document.getElementById('customEnd').value   = toYMD(new Date(t.getFullYear(),t.getMonth()+1,0));
+  refreshCustomSummary();
+}
+
+function setCustomNextMonth() {
+  const t = new Date();
+  document.getElementById('customStart').value = toYMD(new Date(t.getFullYear(),t.getMonth()+1,1));
+  document.getElementById('customEnd').value   = toYMD(new Date(t.getFullYear(),t.getMonth()+2,0));
+  refreshCustomSummary();
+}
+
+// ── API fetching ───────────────────────────────────────────────────────────────
+// Fetch ALL pages for one endpoint (arrival or departure) within the date range
+async function fetchAllPages(endpoint, fromISO, toISO, onProgress) {
+  const items = [];
+  let token   = null;
+  let page    = 0;
+
+  while (true) {
+    let url = `${API_BASE}/${endpoint}?sortOrder=ASC&count=${PAGE_SIZE}&from=${encodeURIComponent(fromISO)}`;
+    if (token) url += `&continuationToken=${encodeURIComponent(token)}`;
+
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`API error ${r.status} on ${endpoint}`);
+    const data = await r.json();
+
+    const batch = data.items || [];
+
+    // Filter to our date window
+    const timeKey = endpoint === 'arrival' ? 'arrivalTime' : 'departureTime';
+    const toDate  = new Date(toISO);
+    for (const item of batch) {
+      const t = new Date(item[timeKey]);
+      if (t <= toDate) items.push(item);
+    }
+
+    page++;
+    if (onProgress) onProgress(items.length);
+
+    // Stop if no continuation token, or if last batch was all beyond our end date
+    if (!data.continuationToken) break;
+    if (batch.length > 0) {
+      const lastTime = new Date(batch[batch.length-1][timeKey]);
+      if (lastTime > toDate) break;
+    }
+
+    token = data.continuationToken;
+  }
+
+  return items;
+}
+
+async function fetchAll() {
+  const range = getActiveRange();
+  if (!range) { setStatus('Please select a valid date range.', 'error'); return; }
+  const { start, end } = range;
+  if (end < start) { setStatus('End date must be on or after start date.', 'error'); return; }
+
+  const btn = document.getElementById('fetchBtn');
+  btn.disabled = true; btn.textContent = '⏳ Fetching…';
+
+  const fromISO = toISO(start);
+  const toISO_  = toISO(end);
+
+  setProgress(true, 0);
+  setStatus(`Fetching arrivals and departures for ${fmtShort(start)} → ${fmtShort(end)}…`, 'loading', true);
+
+  try {
+    let arrivalCount = 0, departureCount = 0;
+
+    // Fetch arrivals
+    setStatus(`Fetching arrivals…`, 'loading', true);
+    const arrivals = await fetchAllPages('arrival', fromISO, toISO_, n => {
+      arrivalCount = n;
+      setStatus(`Fetching arrivals… ${n} loaded`, 'loading', true);
+    });
+
+    // Fetch departures
+    setStatus(`Fetching departures…`, 'loading', true);
+    const departures = await fetchAllPages('departure', fromISO, toISO_, n => {
+      departureCount = n;
+      setStatus(`Fetching departures… ${n} loaded`, 'loading', true);
+    });
+
+    setProgress(false);
+
+    // Merge: join by portcallId so each port call is one row with both arrival + departure time
+    const callMap = new Map();
+
+    for (const a of arrivals) {
+      callMap.set(a.portcallId, {
+        portcallId:    a.portcallId,
+        name:          a.name,
+        imo:           a.imo,
+        mmsi:          a.mmsi,
+        callSign:      a.callSign,
+        arrivalTime:   a.arrivalTime,
+        departureTime: null,
+        arrivalActual: a.isActual,
+        departureActual: null,
+        quay:          a.quay,
+        quayName:      a.quayName,
+        harbourPart:   a.harbourPart,
+        terminal:      a.terminal,
+        agentName:     a.agentName,
+        prevPort:      a.prevPort,
+        prevPortName:  a.prevPortName,
+        nextPort:      null,
+        nextPortName:  null,
+        _type:         'arrival'
+      });
+    }
+
+    for (const d of departures) {
+      if (callMap.has(d.portcallId)) {
+        // Merge departure info into existing arrival record
+        const existing = callMap.get(d.portcallId);
+        existing.departureTime    = d.departureTime;
+        existing.departureActual  = d.isActual;
+        existing.nextPort         = d.nextPort;
+        existing.nextPortName     = d.nextPortName;
+        existing._type            = 'both';
+        // Update quay/agent from departure if arrival had none
+        if (!existing.quayName && d.quayName) existing.quayName = d.quayName;
+        if (!existing.agentName && d.agentName) existing.agentName = d.agentName;
+      } else {
+        callMap.set(d.portcallId, {
+          portcallId:    d.portcallId,
+          name:          d.name,
+          imo:           d.imo,
+          mmsi:          d.mmsi,
+          callSign:      d.callSign,
+          arrivalTime:   null,
+          departureTime: d.departureTime,
+          arrivalActual: null,
+          departureActual: d.isActual,
+          quay:          d.quay,
+          quayName:      d.quayName,
+          harbourPart:   d.harbourPart,
+          terminal:      d.terminal,
+          agentName:     d.agentName,
+          prevPort:      null,
+          prevPortName:  null,
+          nextPort:      d.nextPort,
+          nextPortName:  d.nextPortName,
+          _type:         'departure'
+        });
+      }
+    }
+
+    allVessels = Array.from(callMap.values())
+      .sort((a,b) => {
+        const at = a.arrivalTime || a.departureTime || '';
+        const bt = b.arrivalTime || b.departureTime || '';
+        return at < bt ? -1 : at > bt ? 1 : 0;
+      })
+      .map((v,i) => ({...v, _id:i}));
+
+    filteredVessels = [...allVessels];
+
+    renderTable();
+    updateStats();
+
+    document.getElementById('statsRow').style.display   = 'grid';
+    document.getElementById('exportRow').style.display  = 'flex';
+    document.getElementById('refreshBtn').style.display = '';
+    document.getElementById('statPeriod').textContent   = `${fmtShort(start)}–${fmtShort(end)}`;
+
+    setStatus(`✓ ${allVessels.length} port calls loaded (${arrivals.length} arrivals, ${departures.length} departures) — updated ${new Date().toLocaleTimeString()}`, 'success');
+
+  } catch(err) {
+    console.error(err);
+    setProgress(false);
+    setStatus(`Error: ${err.message}`, 'error');
+  }
+
+  btn.disabled = false; btn.textContent = '▶ Fetch Vessels';
+}
+
+// ── Table ──────────────────────────────────────────────────────────────────────
+function renderTable() {
+  if (!filteredVessels.length) {
+    document.getElementById('tableWrap').innerHTML =
+      `<div class="empty-state"><div class="empty-icon">🔍</div>
+       <div class="empty-title">No matching vessels</div>
+       <div class="empty-sub">Try a different filter or date range</div></div>`;
+    return;
+  }
+
+  const cols = [
+    {key:'name',        label:'Vessel'},
+    {key:'arrivalTime', label:'Arrival'},
+    {key:'departureTime',label:'Departure'},
+    {key:'quayName',    label:'Quay'},
+    {key:'harbourPart', label:'Terminal / Area'},
+    {key:'agentName',   label:'Agent'},
+    {key:'prevPortName',label:'From'},
+    {key:'nextPortName',label:'To'},
+  ];
+
+  let html = `<table><thead><tr>
+    ${cols.map(c=>`<th class="sortable" onclick="sortBy('${c.key}')">${c.label}${sortCol===c.key?(sortDir>0?' ↑':' ↓'):''}</th>`).join('')}
+  </tr></thead><tbody>`;
+
+  filteredVessels.forEach(v => {
+    const typeBadge = v._type === 'arrival'
+      ? `<span class="badge badge-arrival">Arrival</span>`
+      : v._type === 'departure'
+      ? `<span class="badge badge-departure">Departure</span>`
+      : `<span class="badge badge-arrival">Arrival</span> <span class="badge badge-departure">Dep.</span>`;
+
+    const arrClass  = v.arrivalActual   ? 'time-arrival'   : 'time-muted';
+    const depClass  = v.departureActual ? 'time-departure'  : 'time-muted';
+    const arrLabel  = v.arrivalActual   ? '' : '<span style="font-size:10px;opacity:0.6"> ETA</span>';
+    const depLabel  = v.departureActual ? '' : '<span style="font-size:10px;opacity:0.6"> ETD</span>';
+
+    html += `<tr>
+      <td>
+        <div class="vessel-name">${esc(v.name||'—')}</div>
+        <div class="vessel-imo">IMO ${esc(v.imo||'—')} &nbsp;·&nbsp; ${typeBadge}${(()=>{const f=flagFromMmsi(v.mmsi);return f?` &nbsp;·&nbsp; ${flagEmoji(f)} ${esc(f)}`:'';})()}</div>
+      </td>
+      <td><span class="mono-sm ${arrClass}">${fmtDateTime(v.arrivalTime)}${arrLabel}</span></td>
+      <td><span class="mono-sm ${depClass}">${fmtDateTime(v.departureTime)}${depLabel}</span></td>
+      <td>
+        <div class="mono-sm" style="color:var(--text)">${esc(v.quayName||'—')}</div>
+        ${v.quay ? `<div style="font-family:var(--mono);font-size:10px;color:var(--muted)">Quay ${esc(v.quay)}</div>` : ''}
+      </td>
+      <td class="port-cell">${esc(v.harbourPart||'—')}${v.terminal?`<br><span style="font-size:10px">Terminal ${esc(v.terminal)}</span>`:''}</td>
+      <td class="agent-cell">${esc(v.agentName||'—')}</td>
+      <td class="port-cell"><strong>${esc(v.prevPortName||'—')}</strong>${v.prevPort&&v.prevPort!==v.prevPortName?`<br><span style="font-size:10px">${esc(v.prevPort)}</span>`:''}</td>
+      <td class="port-cell"><strong>${esc(v.nextPortName||'—')}</strong>${v.nextPort&&v.nextPort!==v.nextPortName?`<br><span style="font-size:10px">${esc(v.nextPort)}</span>`:''}</td>
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+  document.getElementById('tableWrap').innerHTML = html;
+}
+
+// ── Filter / sort ──────────────────────────────────────────────────────────────
+function applyFilter() {
+  const q    = document.getElementById('filterInput').value.toLowerCase();
+  const type = document.getElementById('typeFilter').value;
+
+  filteredVessels = allVessels.filter(v => {
+    const matchType = !type || v._type === type || v._type === 'both';
+    const matchText = !q || ['name','imo','callSign','quayName','harbourPart','agentName','prevPortName','nextPortName','terminal']
+      .some(k => (v[k]||'').toLowerCase().includes(q));
+    return matchType && matchText;
+  });
+
+  renderTable();
+  updateStats();
+}
+
+function sortBy(col) {
+  if (sortCol===col) sortDir*=-1; else { sortCol=col; sortDir=1; }
+  filteredVessels.sort((a,b) => {
+    const av=(a[col]||'').toString().toLowerCase();
+    const bv=(b[col]||'').toString().toLowerCase();
+    return av<bv?-sortDir:av>bv?sortDir:0;
+  });
+  renderTable();
+}
+
+function updateStats() {
+  document.getElementById('statTotal').textContent     = filteredVessels.length;
+  document.getElementById('statArrivals').textContent  = filteredVessels.filter(v=>v.arrivalTime).length;
+  document.getElementById('statDepartures').textContent= filteredVessels.filter(v=>v.departureTime).length;
+  document.getElementById('statActual').textContent    = filteredVessels.filter(v=>v.arrivalActual||v.departureActual).length;
+}
+
+// ── Export ─────────────────────────────────────────────────────────────────────
+function exportCSV() {
+  const cols = ['name','flag','imo','mmsi','callSign','arrivalTime','departureTime','arrivalActual','departureActual','quay','quayName','harbourPart','terminal','agentName','prevPort','prevPortName','nextPort','nextPortName','portcallId'];
+  const rows = allVessels.map(v => {
+    const flag = flagFromMmsi(v.mmsi) || '';
+    const enriched = {...v, flag};
+    return cols.map(c => `"${String(enriched[c]??'').replace(/"/g,'""')}"`).join(',');
+  });
+  dl('vessels.csv', [cols.join(','), ...rows].join('\n'), 'text/csv');
+}
+
+function exportJSON() {
+  dl('vessels.json', JSON.stringify(allVessels, null, 2), 'application/json');
+}
+
+function dl(name, content, mime) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content],{type:mime}));
+  a.download = name; a.click();
+}
+
+// ── UI helpers ─────────────────────────────────────────────────────────────────
+function setStatus(msg, type='', loading=false) {
+  const el = document.getElementById('statusBar');
+  el.className = 'status-bar'+(type?' '+type:'');
+  el.innerHTML = loading ? `<div class="spinner"></div>${msg}` : msg;
+}
+
+function setProgress(show, pct) {
+  const wrap = document.getElementById('progressWrap');
+  const bar  = document.getElementById('progressBar');
+  wrap.style.display = show ? 'block' : 'none';
+  if (show) bar.style.width = (pct||0)+'%';
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────────
+initDateUI();
+</script>
+</body>
+</html>

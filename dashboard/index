@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>GBG Port Calls – Flag Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Source+Sans+3:wght@300;400;600&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Source Sans 3', sans-serif;
+    background: #0a0f1e;
+    color: #e2e8f0;
+    min-height: 100vh;
+    padding: 2rem;
+  }
+
+  .container { max-width: 980px; margin: 0 auto; }
+
+  header {
+    border-bottom: 1px solid #1e3a5f;
+    padding-bottom: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  header .eyebrow {
+    color: #38bdf8;
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 0.4rem;
+  }
+  header h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 2rem;
+    color: #f0f9ff;
+  }
+  header p { color: #64748b; font-size: 0.85rem; margin-top: 0.3rem; }
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+  .card {
+    background: #0f1f3d;
+    border: 1px solid #1e3a5f;
+    border-radius: 8px;
+    padding: 1.2rem;
+  }
+  .card .label {
+    color: #38bdf8;
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+  .card .value {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.7rem;
+    color: #f0f9ff;
+    margin-top: 0.3rem;
+  }
+
+  .toggle {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.2rem;
+  }
+  .toggle button {
+    padding: 0.4rem 1.1rem;
+    border-radius: 4px;
+    border: 1px solid #1e3a5f;
+    background: #0f1f3d;
+    color: #94a3b8;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-family: 'Source Sans 3', sans-serif;
+    transition: all 0.2s;
+  }
+  .toggle button.active {
+    background: #0ea5e9;
+    color: #fff;
+    border-color: #0ea5e9;
+  }
+
+  .chart-box {
+    background: #0f1f3d;
+    border: 1px solid #1e3a5f;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  .chart-box h2 {
+    color: #38bdf8;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 1.2rem;
+    font-weight: 600;
+  }
+
+  .click-hint {
+    color: #475569;
+    font-size: 0.72rem;
+    margin-bottom: 1rem;
+    font-style: italic;
+  }
+
+  .bottom-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  .pie-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 1rem;
+  }
+  .pie-legend span {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.7rem;
+    color: #94a3b8;
+  }
+  .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+  }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+  thead tr { border-bottom: 1px solid #1e3a5f; }
+  th { color: #38bdf8; font-weight: 400; padding-bottom: 6px; }
+  th:first-child { text-align: left; }
+  th:not(:first-child) { text-align: right; }
+  td { padding: 5px 0; border-bottom: 1px solid #0a1628; vertical-align: middle; }
+  td:not(:first-child) { text-align: right; }
+  .flag-cell { display: flex; align-items: center; gap: 7px; }
+  .td-calls { color: #f0f9ff; }
+  .td-vessels { color: #64748b; }
+
+  .scroll-table { overflow-y: auto; max-height: 300px; }
+
+  /* Modal */
+  .modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+  }
+  .modal-backdrop.open { display: flex; }
+
+  .modal {
+    background: #0f1f3d;
+    border: 1px solid #1e3a5f;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 640px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    animation: slideUp 0.2s ease;
+  }
+  @keyframes slideUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+
+  .modal-header {
+    padding: 1.5rem 1.5rem 1rem;
+    border-bottom: 1px solid #1e3a5f;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+  .modal-header .flag-name {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.4rem;
+    color: #f0f9ff;
+  }
+  .modal-header .meta {
+    color: #64748b;
+    font-size: 0.8rem;
+    margin-top: 0.2rem;
+  }
+  .modal-close {
+    background: none;
+    border: 1px solid #1e3a5f;
+    color: #64748b;
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 0.3rem 0.6rem;
+    font-size: 1rem;
+    transition: all 0.15s;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .modal-close:hover { border-color: #38bdf8; color: #38bdf8; }
+
+  .modal-body {
+    overflow-y: auto;
+    padding: 1.2rem 1.5rem 1.5rem;
+  }
+
+  .modal-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  .modal-table thead tr { border-bottom: 1px solid #1e3a5f; }
+  .modal-table th { color: #38bdf8; font-weight: 400; padding: 0 0 8px; text-align: left; }
+  .modal-table th:last-child { text-align: right; }
+  .modal-table td { padding: 7px 0; border-bottom: 1px solid #0a1628; color: #e2e8f0; vertical-align: middle; }
+  .modal-table td:last-child { text-align: right; color: #f0f9ff; }
+  .modal-table td.imo { color: #64748b; font-family: monospace; font-size: 0.8rem; }
+  .vessel-name { font-weight: 600; color: #f0f9ff; }
+
+  .bar-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 2px;
+  }
+  .bar-track {
+    flex: 1;
+    background: #1e3a5f;
+    border-radius: 2px;
+    height: 4px;
+    overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: #0ea5e9;
+  }
+  .bar-label { color: #64748b; font-size: 0.75rem; min-width: 20px; text-align: right; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <a href="/" style="display:inline-flex;align-items:center;gap:6px;color:#38bdf8;font-size:0.75rem;letter-spacing:0.1em;text-transform:uppercase;text-decoration:none;margin-bottom:1rem;opacity:0.8;transition:opacity 0.2s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.8">
+      ← Back to main page
+    </a>
+    <p class="eyebrow">Port of Gothenburg</p>
+    <h1>Port Calls by Flag</h1>
+    <p>9 February – 9 March 2026 &nbsp;·&nbsp; 457 total calls &nbsp;·&nbsp; 15 flags</p>
+  </header>
+
+  <div class="cards">
+    <div class="card"><div class="label">Total Port Calls</div><div class="value">457</div></div>
+    <div class="card"><div class="label">Unique Flags</div><div class="value">15</div></div>
+    <div class="card"><div class="label">Top Flag Share</div><div class="value">45% Sweden</div></div>
+  </div>
+
+  <div class="toggle">
+    <button class="active" id="btn-calls" onclick="switchMetric('calls')">Port Calls</button>
+    <button id="btn-vessels" onclick="switchMetric('vessels')">Unique Vessels</button>
+  </div>
+
+  <div class="chart-box">
+    <h2 id="bar-title">Port Calls per Flag</h2>
+    <p class="click-hint">Click a bar to see vessel breakdown</p>
+    <canvas id="barChart" height="110"></canvas>
+  </div>
+
+  <div class="bottom-grid">
+    <div class="chart-box">
+      <h2>Share of Total Calls (Top 6)</h2>
+      <p class="click-hint">Click a segment to see vessel breakdown</p>
+      <canvas id="pieChart" height="160"></canvas>
+      <div class="pie-legend" id="pie-legend"></div>
+    </div>
+
+    <div class="chart-box scroll-table">
+      <h2>Full Breakdown</h2>
+      <p class="click-hint">Click a row to see vessel breakdown</p>
+      <table>
+        <thead><tr><th>Flag</th><th>Calls</th><th>Vessels</th></tr></thead>
+        <tbody id="table-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-backdrop" id="modal-backdrop" onclick="closeModalOnBackdrop(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <div class="flag-name" id="modal-flag-name"></div>
+        <div class="meta" id="modal-meta"></div>
+      </div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <table class="modal-table">
+        <thead>
+          <tr>
+            <th>Vessel Name</th>
+            <th>IMO Number</th>
+            <th>Port Calls</th>
+          </tr>
+        </thead>
+        <tbody id="modal-table-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+const flagData = [
+  { flag: "Sweden",            calls: 205, vessels: 28 },
+  { flag: "Denmark",           calls: 87,  vessels: 22 },
+  { flag: "Unknown",           calls: 48,  vessels: 28 },
+  { flag: "Malta",             calls: 20,  vessels: 7  },
+  { flag: "Liberia",           calls: 16,  vessels: 10 },
+  { flag: "Madeira",           calls: 14,  vessels: 6  },
+  { flag: "Netherlands",       calls: 11,  vessels: 6  },
+  { flag: "Marshall Islands",  calls: 9,   vessels: 7  },
+  { flag: "Norway",            calls: 8,   vessels: 6  },
+  { flag: "Faroe Islands",     calls: 7,   vessels: 6  },
+  { flag: "Antigua & Barbuda", calls: 6,   vessels: 2  },
+  { flag: "Germany",           calls: 5,   vessels: 3  },
+  { flag: "Panama",            calls: 5,   vessels: 4  },
+  { flag: "Bahamas",           calls: 4,   vessels: 3  },
+  { flag: "Singapore",         calls: 4,   vessels: 4  },
+];
+
+const vesselData = {"Antigua and Barbuda":[{"name":"SUNSET X","imo":9440590,"calls":4},{"name":"HELENE-B","imo":9195406,"calls":2}],"Bahamas":[{"name":"NORDIC RAY","imo":9386225,"calls":2},{"name":"ALFA BALTICA","imo":9696773,"calls":1},{"name":"MARAN CURRENT","imo":9843924,"calls":1}],"Cyprus":[{"name":"AGATH","imo":9537642,"calls":1},{"name":"ELBSPRINTER","imo":9349215,"calls":1}],"Denmark":[{"name":"HUMBRIA SEAWAYS","imo":9832597,"calls":9},{"name":"FREESIA SEAWAYS","imo":9274848,"calls":9},{"name":"COPENHAGEN","imo":9327487,"calls":8},{"name":"FICARIA SEAWAYS","imo":9320568,"calls":8},{"name":"BEGONIA SEAWAYS","imo":9262089,"calls":8},{"name":"PRIMULA SEAWAYS","imo":9259513,"calls":8},{"name":"AMAK SWAN","imo":9318230,"calls":6},{"name":"TERN VIK","imo":9988970,"calls":4},{"name":"PETUNIA SEAWAYS","imo":9259501,"calls":4},{"name":"TERNSUND","imo":9722390,"calls":3},{"name":"TERN OCEAN","imo":9747986,"calls":3},{"name":"TERN FORS","imo":9909651,"calls":3},{"name":"TERN SEA","imo":9747974,"calls":3},{"name":"TERN ISLAND","imo":9909649,"calls":2},{"name":"GIJON KNUTSEN","imo":9313527,"calls":2},{"name":"MARSEILLE MAERSK","imo":9778844,"calls":1},{"name":"BRO NISSUM","imo":9340623,"calls":1},{"name":"SCANDINAVIA","imo":9341419,"calls":1},{"name":"STEN TRITON","imo":9322695,"calls":1},{"name":"BISCAY","imo":9474450,"calls":1},{"name":"MAREN MAERSK","imo":9632129,"calls":1},{"name":"DAN CISNE","imo":9513440,"calls":1}],"Faroe Islands":[{"name":"HELGAFELL","imo":9306017,"calls":2},{"name":"KOBE PIONIER","imo":9747261,"calls":1},{"name":"YOKOHAMA PIONIER","imo":9747273,"calls":1},{"name":"NAVEN","imo":1049235,"calls":1},{"name":"FURE SKAGEN","imo":9362152,"calls":1},{"name":"NOSSAN","imo":9988516,"calls":1}],"Finland":[{"name":"HALTI","imo":9818278,"calls":1}],"Germany":[{"name":"TIMBUS","imo":9198680,"calls":3},{"name":"BIANCA RAMBOW","imo":9297591,"calls":1},{"name":"SEAMARLIN","imo":9380489,"calls":1}],"Gibraltar":[{"name":"SOUND HORIZON","imo":9651151,"calls":1},{"name":"STENBERG","imo":9283978,"calls":1}],"Italy":[{"name":"AIDAPRIMA","imo":9636955,"calls":1}],"Liberia":[{"name":"PUERTO LIMON EXPRESS","imo":9434943,"calls":4},{"name":"MSC KYUNGMIN","imo":9967005,"calls":4},{"name":"MSC RONIT R","imo":9293167,"calls":1},{"name":"ELANDRA SOUND","imo":9821706,"calls":1},{"name":"MSC AMERICA","imo":9963580,"calls":1},{"name":"MSC ANGOLA","imo":9978729,"calls":1},{"name":"PACIFIC CITRINE","imo":9906893,"calls":1},{"name":"MSC KAYLEY","imo":9927299,"calls":1},{"name":"MSC NERANO","imo":9963607,"calls":1},{"name":"VL PIONEER","imo":9683661,"calls":1}],"Madeira":[{"name":"DINA TRADER","imo":9354442,"calls":4},{"name":"AKACIA","imo":9315020,"calls":4},{"name":"CGAS MONARCH","imo":9356919,"calls":3},{"name":"OCEAN GUARDIAN","imo":9761401,"calls":1},{"name":"DREAM SYRAX","imo":9719513,"calls":1},{"name":"AUTO ECO","imo":9736365,"calls":1}],"Malta":[{"name":"DELPHINE","imo":9789245,"calls":9},{"name":"NORE","imo":9407225,"calls":6},{"name":"THALATTA","imo":9702455,"calls":1},{"name":"MRC LIVA","imo":9629964,"calls":1},{"name":"ALAND","imo":9487380,"calls":1},{"name":"SCOT BERLIN","imo":9255804,"calls":1},{"name":"ECO MAESTRO","imo":9985942,"calls":1}],"Marshall Islands":[{"name":"SEAGAS LOYALTY","imo":9710335,"calls":3},{"name":"SEAWAYS SABINE","imo":9594755,"calls":1},{"name":"MORNING PROSPERITY","imo":9780639,"calls":1},{"name":"KITIKMEOT W.","imo":9421219,"calls":1},{"name":"YASA POLARIS","imo":9907457,"calls":1},{"name":"STI FINCHLEY","imo":9696565,"calls":1},{"name":"AIFANOURIOS","imo":9891696,"calls":1}],"Netherlands":[{"name":"THUN RELIANCE","imo":9970519,"calls":3},{"name":"BITLAND","imo":9503914,"calls":3},{"name":"ASTELLA","imo":9904041,"calls":2},{"name":"BITONIA","imo":9503902,"calls":1},{"name":"STATENGRACHT","imo":9288045,"calls":1},{"name":"CAROLINE ESSBERGER","imo":9439151,"calls":1}],"Norway":[{"name":"NORDIC SIRA","imo":9346500,"calls":3},{"name":"HOEGH BOREALIS","imo":9962689,"calls":1},{"name":"STEN MOSTER","imo":9341184,"calls":1},{"name":"STEN HIDRA","imo":9358931,"calls":1},{"name":"HAGLAND PROGRESS","imo":9936343,"calls":1},{"name":"STEN AURORA","imo":9318565,"calls":1}],"Panama":[{"name":"RICH HARVEST","imo":9908982,"calls":2},{"name":"MSC MARIA PIA","imo":9155107,"calls":1},{"name":"MORNING LYNN","imo":9383429,"calls":1},{"name":"MSC ARIANE","imo":9484443,"calls":1}],"Singapore":[{"name":"BOHEME","imo":9176565,"calls":1},{"name":"DON PASQUALE","imo":9138513,"calls":1},{"name":"THEBEN","imo":9722302,"calls":1},{"name":"SOPHIA KOSAN","imo":9374557,"calls":1}],"South Korea":[{"name":"ASIAN EMPIRE","imo":9176606,"calls":1}],"Sweden":[{"name":"STENA JUTLANDICA","imo":9125944,"calls":55},{"name":"STENA DANICA","imo":7907245,"calls":52},{"name":"STENA SCANDINAVICA","imo":9235517,"calls":15},{"name":"STENA GERMANICA","imo":9145176,"calls":13},{"name":"BRISEN","imo":9970595,"calls":8},{"name":"VINGAREN","imo":9864277,"calls":7},{"name":"NORDEN","imo":9346641,"calls":6},{"name":"TRESFJORD","imo":9254977,"calls":5},{"name":"FOX SUNRISE","imo":9333917,"calls":5},{"name":"NORTHERN SKAGERRAK","imo":9817963,"calls":5},{"name":"SAGAFJORD","imo":9310317,"calls":5},{"name":"MERCURIUS","imo":9816531,"calls":3},{"name":"SATURNUS","imo":9816529,"calls":3},{"name":"FOX LUNA","imo":9390458,"calls":3},{"name":"SCORPIUS","imo":9318228,"calls":3},{"name":"FURE VESBORG","imo":9980332,"calls":2},{"name":"NIMBUS","imo":9410507,"calls":2},{"name":"NEPTUNUS","imo":9410519,"calls":2},{"name":"ASTELLA","imo":9904041,"calls":2},{"name":"DELFIN","imo":999998989,"calls":1},{"name":"LOTUS","imo":9297137,"calls":1},{"name":"ASTRAL","imo":9371878,"calls":1},{"name":"ASTANA","imo":9904053,"calls":1},{"name":"ASTINA","imo":9320063,"calls":1},{"name":"FURE VICTORIA","imo":9983968,"calls":1},{"name":"CORALIUS","imo":9769128,"calls":1},{"name":"FURE VITEN","imo":9898204,"calls":1},{"name":"FURE VIKEN","imo":9980318,"calls":1}],"United Kingdom":[{"name":"HILDA KNUTSEN","imo":9628300,"calls":1}],"Unknown":[{"name":"FLANDRIA SEAWAYS","imo":9860142,"calls":8},{"name":"OLJAREN","imo":9236315,"calls":5},{"name":"TERNVIND","imo":9425356,"calls":3},{"name":"PACIFIC","imo":9308900,"calls":3},{"name":"SCANDICA","imo":8129383,"calls":2},{"name":"ESSENCE","imo":9491496,"calls":2},{"name":"BOA SUND","imo":7500798,"calls":2},{"name":"CHARLOTTE THERESA","imo":9400708,"calls":2},{"name":"NORDIC SOLA","imo":9375989,"calls":2},{"name":"ELBIA","imo":9326990,"calls":1},{"name":"P-ARKEN","imo":0,"calls":1},{"name":"BODIL KNUTSEN","imo":9472529,"calls":1},{"name":"CGAS MARINER","imo":9344198,"calls":1},{"name":"X-PRESS AGILITY","imo":9483671,"calls":1},{"name":"TAKLIFT","imo":8639431,"calls":1},{"name":"SOLERO","imo":9428085,"calls":1},{"name":"MAYVIEW MAERSK","imo":9619995,"calls":1},{"name":"POLARIS LIBERTY","imo":9407689,"calls":1},{"name":"JETTE THERESA","imo":9406582,"calls":1},{"name":"STEN SUOMI","imo":9378723,"calls":1},{"name":"CITY OF ST. PETERSBURG","imo":9473456,"calls":1},{"name":"ALGOSOLIS","imo":9409261,"calls":1},{"name":"STEN ARNOLD","imo":9371610,"calls":1},{"name":"APL FULLERTON","imo":9632026,"calls":1},{"name":"THUN GAZELLE","imo":9393333,"calls":1},{"name":"CAROLINE THERESA","imo":9428449,"calls":1},{"name":"MARIBO MAERSK","imo":9619969,"calls":1},{"name":"TANKSK\u00c3\u201eR","imo":8327105,"calls":1}]};
+
+// Normalise lookup key
+function getVessels(flagName) {
+  if (vesselData[flagName]) return vesselData[flagName];
+  // Try "Antigua & Barbuda" → "Antigua and Barbuda"
+  const alt = flagName.replace(' & ', ' and ');
+  return vesselData[alt] || [];
+}
+
+const COLORS = [
+  "#0ea5e9","#38bdf8","#7dd3fc","#bae6fd","#93c5fd",
+  "#0284c7","#0369a1","#075985","#0c4a6e","#164e63",
+  "#155e75","#1e40af","#1d4ed8","#2563eb","#3b82f6"
+];
+
+let metric = "calls";
+
+// ── Bar Chart ──────────────────────────────────────────────
+const barCtx = document.getElementById('barChart').getContext('2d');
+const barChart = new Chart(barCtx, {
+  type: 'bar',
+  data: {
+    labels: flagData.map(d => d.flag),
+    datasets: [{
+      data: flagData.map(d => d.calls),
+      backgroundColor: COLORS,
+      borderRadius: 4,
+      borderSkipped: false,
+    }]
+  },
+  options: {
+    onClick(evt) {
+      const pts = barChart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, false);
+      if (pts.length) openModal(flagData[pts[0].index].flag);
+    },
+    onHover(evt, elems) {
+      barCtx.canvas.style.cursor = elems.length ? 'pointer' : 'default';
+    },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#0a0f1e', borderColor: '#1e3a5f', borderWidth: 1,
+        titleColor: '#38bdf8', bodyColor: '#e2e8f0',
+      }
+    },
+    scales: {
+      x: { ticks: { color: '#64748b', font: { size: 10 }, maxRotation: 40 }, grid: { color: '#0f1f3d' } },
+      y: { ticks: { color: '#64748b', font: { size: 11 } }, grid: { color: '#1e3a5f' } }
+    }
+  }
+});
+
+// ── Pie Chart ──────────────────────────────────────────────
+const pieCtx = document.getElementById('pieChart').getContext('2d');
+const pieLabels = [...flagData.slice(0,6).map(d=>d.flag), 'Others'];
+const pieChart = new Chart(pieCtx, {
+  type: 'doughnut',
+  data: {
+    labels: pieLabels,
+    datasets: [{
+      data: [...flagData.slice(0,6).map(d=>d.calls), flagData.slice(6).reduce((s,d)=>s+d.calls,0)],
+      backgroundColor: [...COLORS.slice(0,6), '#1e3a5f'],
+      borderWidth: 2,
+      borderColor: '#0a0f1e',
+    }]
+  },
+  options: {
+    cutout: '60%',
+    onClick(evt) {
+      const pts = pieChart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, false);
+      if (pts.length) {
+        const label = pieLabels[pts[0].index];
+        if (label !== 'Others') openModal(label);
+      }
+    },
+    onHover(evt, elems) {
+      pieCtx.canvas.style.cursor = elems.length ? 'pointer' : 'default';
+    },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#0a0f1e', borderColor: '#1e3a5f', borderWidth: 1,
+        titleColor: '#38bdf8', bodyColor: '#e2e8f0',
+      }
+    }
+  }
+});
+
+// Pie legend
+const legendEl = document.getElementById('pie-legend');
+pieLabels.forEach((f, i) => {
+  const span = document.createElement('span');
+  span.innerHTML = `<span class="dot" style="background:${i<6?COLORS[i]:'#1e3a5f'}"></span>${f}`;
+  legendEl.appendChild(span);
+});
+
+// ── Flag Table ─────────────────────────────────────────────
+const tbody = document.getElementById('table-body');
+flagData.forEach(({ flag, calls, vessels }, i) => {
+  const tr = document.createElement('tr');
+  tr.style.cursor = 'pointer';
+  tr.innerHTML = `
+    <td><div class="flag-cell"><span class="dot" style="background:${COLORS[i]}"></span>${flag}</div></td>
+    <td class="td-calls">${calls}</td>
+    <td class="td-vessels">${vessels}</td>
+  `;
+  tr.addEventListener('click', () => openModal(flag));
+  tr.addEventListener('mouseenter', () => tr.style.background = '#12284a');
+  tr.addEventListener('mouseleave', () => tr.style.background = '');
+  tbody.appendChild(tr);
+});
+
+// ── Toggle ─────────────────────────────────────────────────
+function switchMetric(m) {
+  metric = m;
+  document.getElementById('btn-calls').classList.toggle('active', m === 'calls');
+  document.getElementById('btn-vessels').classList.toggle('active', m === 'vessels');
+  document.getElementById('bar-title').textContent = m === 'calls' ? 'Port Calls per Flag' : 'Unique Vessels per Flag';
+  barChart.data.datasets[0].data = flagData.map(d => d[m]);
+  barChart.update();
+}
+
+// ── Modal ──────────────────────────────────────────────────
+function openModal(flagName) {
+  const vessels = getVessels(flagName);
+  document.getElementById('modal-flag-name').textContent = flagName;
+
+  const totalCalls = vessels.reduce((s, v) => s + v.calls, 0);
+  document.getElementById('modal-meta').textContent =
+    `${vessels.length} vessel${vessels.length !== 1 ? 's' : ''} · ${totalCalls} port call${totalCalls !== 1 ? 's' : ''}`;
+
+  const maxCalls = Math.max(...vessels.map(v => v.calls));
+  const mtbody = document.getElementById('modal-table-body');
+  mtbody.innerHTML = '';
+
+  vessels.forEach(v => {
+    const tr = document.createElement('tr');
+    const imoDisplay = v.imo && v.imo > 0 ? v.imo : '—';
+    const pct = (v.calls / maxCalls) * 100;
+    tr.innerHTML = `
+      <td>
+        <div class="vessel-name">${v.name}</div>
+        <div class="bar-row">
+          <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+        </div>
+      </td>
+      <td class="imo">${imoDisplay}</td>
+      <td>${v.calls}</td>
+    `;
+    mtbody.appendChild(tr);
+  });
+
+  document.getElementById('modal-backdrop').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal() {
+  document.getElementById('modal-backdrop').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function closeModalOnBackdrop(e) {
+  if (e.target === document.getElementById('modal-backdrop')) closeModal();
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+</script>
+</body>
+</html>
